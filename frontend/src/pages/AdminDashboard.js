@@ -302,6 +302,11 @@ export default function AdminDashboard() {
           <div className="order-card-meta">
             {order.client_email} &nbsp;·&nbsp; {order.created_at?.slice(11,16)} &nbsp;·&nbsp;
             <span style={{ color: '#8B4513', fontWeight: 600 }}>{kwd(order.total)}</span>
+            {order.delivery_date && (
+              <span style={{ marginLeft: 8, color: '#2E7D4A', fontSize: '0.82rem', fontWeight: 500 }}>
+                📦 Delivery: {order.delivery_date}
+              </span>
+            )}
           </div>
 
           <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse', marginBottom: 14 }}>

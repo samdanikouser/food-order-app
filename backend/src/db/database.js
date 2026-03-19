@@ -80,11 +80,11 @@ if (count.count === 0) {
     ['Overnight Oats (Hazelnut / Classic)', '', 0.37, 'Sandwiches & Light Meals'],
     ['Protein Porridge Cup', '', 0.59, 'Sandwiches & Light Meals'],
 
-    // OPEN TOASTS
-    ['Classic Avocado Toast', 'On sourdough bread', 0.38, 'Open Toasts'],
-    ['Pistachio Labneh Toast', 'On sourdough bread', 0.49, 'Open Toasts'],
-    ['Honey Ricotta Toast', 'On sourdough bread', 0.92, 'Open Toasts'],
-    ['Nut Butter Banana Toast', 'On sourdough bread', 1.26, 'Open Toasts'],
+    // OPEN TOASTS – SOURDOUGH BREADS
+    ['Classic Avocado Toast', 'On sourdough bread', 0.38, 'Open Toasts – Sourdough Breads'],
+    ['Pistachio Labneh Toast', 'On sourdough bread', 0.49, 'Open Toasts – Sourdough Breads'],
+    ['Honey Ricotta Toast', 'On sourdough bread', 0.92, 'Open Toasts – Sourdough Breads'],
+    ['Nut Butter Banana Toast', 'On sourdough bread', 1.26, 'Open Toasts – Sourdough Breads'],
 
     // CROISSANTERIE
     ['Butter Croissant', '', 0.49, 'Croissanterie'],
@@ -132,4 +132,25 @@ if (count.count === 0) {
   console.log(`Menu seeded with ${items.length} items.`);
 }
 
+// Predefined categories (used by admin add-item dropdown and client menu pills)
+const CATEGORIES = [
+  'Sandwiches & Light Meals',
+  'Open Toasts – Sourdough Breads',
+  'Croissanterie',
+  'Bakery',
+  'Cakes',
+  'Pastry',
+  'Cookies',
+  'Confectionery',
+];
+
+// Migrate: add delivery_date column if missing
+try {
+  db.prepare("SELECT delivery_date FROM orders LIMIT 1").get();
+} catch {
+  db.exec("ALTER TABLE orders ADD COLUMN delivery_date TEXT");
+  console.log('Migration: added delivery_date column to orders table.');
+}
+
 module.exports = db;
+module.exports.CATEGORIES = CATEGORIES;

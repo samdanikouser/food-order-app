@@ -17,6 +17,7 @@ export default function MenuPage() {
   const [clientEmail, setClientEmail] = useState('');
   const [notes, setNotes]           = useState('');
   const [customOrder, setCustomOrder] = useState('');
+  const [deliveryDate, setDeliveryDate] = useState('');
   const [loading, setLoading]       = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState('');
@@ -72,6 +73,7 @@ export default function MenuPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!clientName || !clientEmail) { setError('Please enter your name and email.'); return; }
+    if (!deliveryDate) { setError('Please select an expected delivery date.'); return; }
     if (cartCount === 0 && !customOrder.trim()) { setError('Please add at least one item or enter a custom order request.'); return; }
     setError('');
     setSubmitting(true);
@@ -89,6 +91,7 @@ export default function MenuPage() {
       const res = await axios.post('/api/orders', {
         client_name: clientName,
         client_email: clientEmail,
+        delivery_date: deliveryDate,
         items: items.length > 0 ? items : [],
         notes: combinedNotes,
         custom_order: customOrder.trim() || undefined,
@@ -229,6 +232,16 @@ export default function MenuPage() {
                 />
               </div>
               <div className="form-group">
+                <label>Expected Delivery Date</label>
+                <input
+                  type="date"
+                  value={deliveryDate}
+                  onChange={e => setDeliveryDate(e.target.value)}
+                  min={new Date().toISOString().split('T')[0]}
+                  required
+                />
+              </div>
+              <div className="form-group">
                 <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   Custom Order Request
                   <span style={{
@@ -317,6 +330,11 @@ export default function MenuPage() {
                       <span className="history-order-items">
                         {order.items.length} item{order.items.length !== 1 ? 's' : ''}
                       </span>
+                      {order.delivery_date && (
+                        <span style={{ fontSize: '0.78rem', color: '#2E7D4A', marginLeft: 6 }}>
+                          📦 {order.delivery_date}
+                        </span>
+                      )}
                     </div>
                     <div className="history-card-right">
                       <span className="history-order-total">{kwd(order.total)}</span>

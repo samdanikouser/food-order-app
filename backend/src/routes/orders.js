@@ -64,7 +64,7 @@ router.get('/:id', (req, res) => {
 
 // POST /api/orders  — place new order (public — clients use this)
 router.post('/', (req, res) => {
-  const { client_name, client_email, items, notes } = req.body;
+  const { client_name, client_email, items, notes, delivery_date } = req.body;
   const hasMenuItems   = Array.isArray(items) && items.length > 0;
   const hasCustomOrder = notes && notes.trim().length > 0;
 
@@ -85,14 +85,14 @@ router.post('/', (req, res) => {
 
   const order_date = new Date().toISOString().split('T')[0];
   const insertOrder = db.prepare(
-    'INSERT INTO orders (client_name, client_email, order_date, total, notes) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO orders (client_name, client_email, order_date, total, notes, delivery_date) VALUES (?, ?, ?, ?, ?, ?)'
   );
   const insertItem = db.prepare(
     'INSERT INTO order_items (order_id, menu_item_id, quantity, unit_price) VALUES (?, ?, ?, ?)'
   );
 
   const placeOrder = db.transaction(() => {
-    const result = insertOrder.run(client_name, client_email, order_date, total, notes || '');
+    const result = insertOrder.run(client_name, client_email, order_date, total, notes || '', delivery_date || '');
     const orderId = result.lastInsertRowid;
     for (const item of (items || [])) {
       const row = menuItem.get(item.menu_item_id);
@@ -109,6 +109,7 @@ router.post('/', (req, res) => {
     client_name,
     client_email,
     order_date,
+    delivery_date: delivery_date || '',
     total,
     notes: notes || '',
     items: itemsQuery(orderId),

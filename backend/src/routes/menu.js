@@ -1,7 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../db/database');
+const { CATEGORIES } = require('../db/database');
 const { requireAuth } = require('./auth');
+
+// GET predefined categories
+router.get('/categories', (req, res) => {
+  res.json({ success: true, data: CATEGORIES });
+});
 
 // GET all available menu items (public)
 router.get('/', (req, res) => {

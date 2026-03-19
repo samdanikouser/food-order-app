@@ -25,6 +25,7 @@ function buildOrderText(order) {
     `☕ New Order #${order.id} — Studio Roast`,
     `Customer : ${order.client_name} <${order.client_email}>`,
     `Date     : ${order.order_date}`,
+    order.delivery_date ? `Delivery : ${order.delivery_date}` : null,
     ``,
     `Items:`,
     ...lines,
@@ -56,6 +57,7 @@ function buildEmailHtml(order) {
           <tr><td style="color:#9A7A5A;padding:3px 0">Customer</td><td style="color:#2C1A0E">${order.client_name}</td></tr>
           <tr><td style="color:#9A7A5A;padding:3px 0">Email</td><td style="color:#2C1A0E">${order.client_email}</td></tr>
           <tr><td style="color:#9A7A5A;padding:3px 0">Date</td><td style="color:#2C1A0E">${order.order_date}</td></tr>
+          ${order.delivery_date ? `<tr><td style="color:#9A7A5A;padding:3px 0">Delivery</td><td style="color:#2E7D4A;font-weight:600">${order.delivery_date}</td></tr>` : ''}
           ${order.notes ? `<tr><td style="color:#9A7A5A;padding:3px 0">Notes</td><td style="color:#7A5C3A;font-style:italic">${order.notes}</td></tr>` : ''}
         </table>
         <table style="width:100%;border-collapse:collapse">
@@ -209,8 +211,12 @@ async function testWhatsApp(db) {
 
 /** Fire both notifications without blocking the response */
 function sendNotifications(db, order) {
-  sendEmail(db, order).catch(() => {});
-  sendWhatsApp(db, order).catch(() => {});
+  console.log(`🔔 Triggering notifications for order #${order.id}...`);
+  const s = getSettings(db);
+  console.log(`🔔 Email enabled: ${s.email_enabled}, WhatsApp enabled: ${s.whatsapp_enabled}`);
+  console.log(`🔔 WhatsApp recipients raw: ${s.whatsapp_recipients}`);
+  sendEmail(db, order).catch(err => console.error('🔔 Email notification error:', err.message));
+  sendWhatsApp(db, order).catch(err => console.error('🔔 WhatsApp notification error:', err.message));
 }
 
 module.exports = { sendNotifications, testEmail, testWhatsApp };
