@@ -98,7 +98,10 @@ function createTransporter(s) {
 /** Send email to ALL configured recipients */
 async function sendEmail(db, order) {
   const s = getSettings(db);
-  if (s.email_enabled !== '1') return;
+  if (s.email_enabled !== '1') {
+    console.log(`✉️  Email SKIPPED: email_enabled is "${s.email_enabled}" (expected "1")`);
+    return;
+  }
   if (!nodemailer) { console.log('✉️  nodemailer not installed — run: npm install nodemailer'); return; }
 
   const recipients = safeJSON(s.email_recipients, []).filter(Boolean);
@@ -146,21 +149,37 @@ async function sendOneWhatsApp(phone, apikey, text) {
 /** Send WhatsApp to ALL configured recipients */
 async function sendWhatsApp(db, order) {
   const s = getSettings(db);
-  if (s.whatsapp_enabled !== '1') return;
+  console.log(`📱 WhatsApp check — enabled: "${s.whatsapp_enabled}", recipients raw: ${s.whatsapp_recipients}`);
+
+  if (s.whatsapp_enabled !== '1') {
+    console.log(`📱 WhatsApp SKIPPED: whatsapp_enabled is "${s.whatsapp_enabled}" (expected "1")`);
+    return;
+  }
 
   const recipients = safeJSON(s.whatsapp_recipients, []).filter(r => r.phone && r.apikey);
   if (recipients.length === 0) {
-    console.log('📱 WhatsApp skipped: no recipients configured');
+    console.log('📱 WhatsApp SKIPPED: no valid recipients after parsing');
     return;
   }
 
   const text = buildOrderText(order);
+  console.log(`📱 Sending WhatsApp to ${recipients.length} recipient(s) for order #${order.id}...`);
+
   for (const r of recipients) {
     try {
       await sendOneWhatsApp(r.phone, r.apikey, text);
-      console.log(`📱 WhatsApp sent to ${r.phone} for order #${order.id}`);
+      console.log(`📱 WhatsApp SENT to ${r.phone} for order #${order.id}`);
     } catch (err) {
       console.error(`📱 WhatsApp FAILED for ${r.phone} order #${order.id}:`, err.message);
+      // CallMeBot rate limits — retry once after 30s
+      console.log(`📱 Retrying ${r.phone} in 30 seconds...`);
+      await new Promise(resolve => setTimeout(resolve, 30000));
+      try {
+        await sendOneWhatsApp(r.phone, r.apikey, text);
+        console.log(`📱 WhatsApp SENT (retry) to ${r.phone} for order #${order.id}`);
+      } catch (err2) {
+        console.error(`📱 WhatsApp FAILED (retry) for ${r.phone}:`, err2.message);
+      }
     }
   }
 }

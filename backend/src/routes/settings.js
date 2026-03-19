@@ -46,4 +46,20 @@ router.post('/test-whatsapp', requireAuth, async (req, res) => {
   res.json(result);
 });
 
+// GET /api/settings/debug-notifications — check what's actually stored (admin only)
+router.get('/debug-notifications', requireAuth, (req, res) => {
+  const rows = db.prepare('SELECT key, value FROM settings').all();
+  const s = {};
+  rows.forEach(r => { s[r.key] = r.value; });
+  res.json({
+    email_enabled: s.email_enabled,
+    email_recipients: s.email_recipients,
+    smtp_user: s.smtp_user ? '***configured***' : '(empty)',
+    smtp_pass: s.smtp_pass ? '***configured***' : '(empty)',
+    whatsapp_enabled: s.whatsapp_enabled,
+    whatsapp_recipients: s.whatsapp_recipients,
+    note: 'whatsapp_enabled must be exactly "1" and whatsapp_recipients must be valid JSON array of {phone, apikey} objects',
+  });
+});
+
 module.exports = router;
