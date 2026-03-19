@@ -16,6 +16,7 @@ export default function MenuPage() {
   const [clientName, setClientName] = useState('');
   const [clientEmail, setClientEmail] = useState('');
   const [notes, setNotes]           = useState('');
+  const [customOrder, setCustomOrder] = useState('');
   const [loading, setLoading]       = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState('');
@@ -71,15 +72,26 @@ export default function MenuPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!clientName || !clientEmail) { setError('Please enter your name and email.'); return; }
-    if (cartCount === 0) { setError('Please add at least one item to your order.'); return; }
+    if (cartCount === 0 && !customOrder.trim()) { setError('Please add at least one item or enter a custom order request.'); return; }
     setError('');
     setSubmitting(true);
     try {
       const items = Object.entries(cart).map(([id, qty]) => ({
         menu_item_id: parseInt(id), quantity: qty,
       }));
+      // Combine custom order request into notes
+      const combinedNotes = [
+        customOrder.trim() ? `Custom request: ${customOrder.trim()}` : '',
+        notes.trim(),
+      ].filter(Boolean).join('\n');
+
+      // If only custom order (no menu items), use a placeholder item approach via notes only
       const res = await axios.post('/api/orders', {
-        client_name: clientName, client_email: clientEmail, items, notes
+        client_name: clientName,
+        client_email: clientEmail,
+        items: items.length > 0 ? items : [],
+        notes: combinedNotes,
+        custom_order: customOrder.trim() || undefined,
       });
       localStorage.setItem('clientEmail', clientEmail);
       navigate(`/confirmation/${res.data.data.order_id}`);
@@ -105,7 +117,7 @@ export default function MenuPage() {
     <div>
       {/* Hero */}
       <div style={{ marginBottom: 28 }}>
-        <h1 className="page-title">Today's Menu</h1>
+        <h1 className="page-title">Menu</h1>
         <p className="page-subtitle">Select your items and place your daily order</p>
       </div>
 
@@ -217,18 +229,34 @@ export default function MenuPage() {
                 />
               </div>
               <div className="form-group">
+                <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  Custom Order Request
+                  <span style={{
+                    fontSize: '0.7rem', background: 'rgba(139,69,19,0.08)',
+                    color: '#8B4513', padding: '1px 7px', borderRadius: 20,
+                    border: '1px solid rgba(139,69,19,0.18)', fontWeight: 500,
+                  }}>Not on the menu?</span>
+                </label>
+                <textarea
+                  value={customOrder}
+                  onChange={e => setCustomOrder(e.target.value)}
+                  placeholder="e.g. Extra shot of espresso, oat milk latte, gluten-free option…"
+                  rows={2}
+                />
+              </div>
+              <div className="form-group">
                 <label>Special Notes</label>
                 <textarea
                   value={notes}
                   onChange={e => setNotes(e.target.value)}
-                  placeholder="Allergies, preferences..."
+                  placeholder="Allergies, preferences, delivery instructions…"
                   rows={2}
                 />
               </div>
               <button
                 className="btn btn-primary"
                 type="submit"
-                disabled={submitting || cartCount === 0}
+                disabled={submitting || (cartCount === 0 && !customOrder.trim())}
               >
                 {submitting ? 'Placing Order…' : `Place Order — ${kwd(total)}`}
               </button>

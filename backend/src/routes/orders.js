@@ -65,14 +65,19 @@ router.get('/:id', (req, res) => {
 // POST /api/orders  — place new order (public — clients use this)
 router.post('/', (req, res) => {
   const { client_name, client_email, items, notes } = req.body;
+  const hasMenuItems   = Array.isArray(items) && items.length > 0;
+  const hasCustomOrder = notes && notes.trim().length > 0;
 
-  if (!client_name || !client_email || !items || items.length === 0) {
-    return res.status(400).json({ success: false, message: 'Name, email, and at least one item are required' });
+  if (!client_name || !client_email) {
+    return res.status(400).json({ success: false, message: 'Name and email are required' });
+  }
+  if (!hasMenuItems && !hasCustomOrder) {
+    return res.status(400).json({ success: false, message: 'Please add at least one item or enter a custom order request' });
   }
 
   let total = 0;
   const menuItem = db.prepare('SELECT * FROM menu_items WHERE id = ? AND available = 1');
-  for (const item of items) {
+  for (const item of (items || [])) {
     const row = menuItem.get(item.menu_item_id);
     if (!row) return res.status(400).json({ success: false, message: `Menu item ${item.menu_item_id} not found` });
     total += row.price * item.quantity;
@@ -89,7 +94,7 @@ router.post('/', (req, res) => {
   const placeOrder = db.transaction(() => {
     const result = insertOrder.run(client_name, client_email, order_date, total, notes || '');
     const orderId = result.lastInsertRowid;
-    for (const item of items) {
+    for (const item of (items || [])) {
       const row = menuItem.get(item.menu_item_id);
       insertItem.run(orderId, item.menu_item_id, item.quantity, row.price);
     }
