@@ -1,0 +1,27 @@
+{
+  "short_name": "Studio Roast",
+  "name": "Studio Roast — Daily Orders",
+  "description": "Daily food and beverage ordering for Studio Roast Kuwait",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#1C0E06",
+  "theme_color": "#1C0E06",
+  "lang": "en",
+  "categories": ["food", "productivity"],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ]
+}

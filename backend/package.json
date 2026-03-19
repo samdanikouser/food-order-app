@@ -1,0 +1,22 @@
+{
+  "name": "food-order-backend",
+  "version": "1.0.0",
+  "description": "Backend API for the daily food order app",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "nodemon src/index.js",
+    "install:notifications": "npm install nodemailer"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.4.3",
+    "cors": "^2.8.5",
+    "express": "^4.18.2"
+  },
+  "optionalDependencies": {
+    "nodemailer": "^6.9.9"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.3"
+  }
+}
