@@ -26,11 +26,25 @@ app.get('/api/health', (req, res) => {
 });
 
 // ── Serve React frontend in production ──────────────────
-const frontendBuild = path.join(__dirname, '../../frontend/build');
+// Try multiple possible paths to find the frontend build
+const fs = require('fs');
+const possiblePaths = [
+  path.join(__dirname, '../../frontend/build'),       // local dev: backend/src -> frontend/build
+  path.join(process.cwd(), '../frontend/build'),      // Railway: cwd=backend -> ../frontend/build
+  path.join(process.cwd(), 'frontend/build'),         // Railway: cwd=app root
+  path.join(__dirname, '../../../frontend/build'),    // fallback
+];
+const frontendBuild = possiblePaths.find(p => fs.existsSync(path.join(p, 'index.html'))) || possiblePaths[0];
+console.log(`📁 Frontend build path: ${frontendBuild} (exists: ${fs.existsSync(path.join(frontendBuild, 'index.html'))})`);
+
 app.use(express.static(frontendBuild));
 // Any non-API route serves the React app (handles client-side routing)
 app.get('*', (req, res) => {
-  res.sendFile(path.join(frontendBuild, 'index.html'));
+  const indexPath = path.join(frontendBuild, 'index.html');
+  if (!fs.existsSync(indexPath)) {
+    return res.status(500).send(`Frontend not found. Tried: ${possiblePaths.join(', ')}`);
+  }
+  res.sendFile(indexPath);
 });
 
 app.listen(PORT, () => {
