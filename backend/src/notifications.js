@@ -16,23 +16,38 @@ function safeJSON(str, fallback) {
   try { return JSON.parse(str); } catch { return fallback; }
 }
 
-/** Build plain-text order summary */
+/** Build plain-text order summary (used for email plain-text fallback) */
 function buildOrderText(order) {
   const lines = order.items.map(
-    i => `  • ${i.name} x${i.quantity}  KWD ${(i.unit_price * i.quantity).toFixed(3)}`
+    i => `  - ${i.name} x${i.quantity}  KWD ${(i.unit_price * i.quantity).toFixed(3)}`
   );
   return [
-    `☕ New Order #${order.id} — Studio Roast`,
-    `Customer : ${order.client_name} <${order.client_email}>`,
-    `Date     : ${order.order_date}`,
-    order.delivery_date ? `Delivery : ${order.delivery_date}` : null,
+    `New Order #${order.id} - Studio Roast`,
+    `Customer: ${order.client_name} <${order.client_email}>`,
+    `Date: ${order.order_date}`,
+    order.delivery_date ? `Delivery: ${order.delivery_date}` : null,
     ``,
     `Items:`,
     ...lines,
     ``,
-    `Total    : KWD ${order.total.toFixed(3)}`,
-    order.notes ? `Notes    : ${order.notes}` : null,
+    `Total: KWD ${order.total.toFixed(3)}`,
+    order.notes ? `Notes: ${order.notes}` : null,
   ].filter(l => l !== null).join('\n');
+}
+
+/** Build SHORT WhatsApp message (CallMeBot has URL length limits) */
+function buildWhatsAppText(order) {
+  const itemList = order.items.map(i => `${i.name} x${i.quantity}`).join(', ');
+  const parts = [
+    `New Order #${order.id}`,
+    `Customer: ${order.client_name}`,
+    `Date: ${order.order_date}`,
+  ];
+  if (order.delivery_date) parts.push(`Delivery: ${order.delivery_date}`);
+  if (itemList) parts.push(`Items: ${itemList}`);
+  parts.push(`Total: KWD ${order.total.toFixed(3)}`);
+  if (order.notes) parts.push(`Notes: ${order.notes.slice(0, 100)}`);
+  return parts.join('\n');
 }
 
 /** Build HTML email body */
@@ -130,8 +145,11 @@ async function sendEmail(db, order) {
 
 /** Send one WhatsApp message via CallMeBot */
 async function sendOneWhatsApp(phone, apikey, text) {
+  // Strip + prefix — CallMeBot expects plain digits
+  const cleanPhone = phone.replace(/[^0-9]/g, '');
   const encoded = encodeURIComponent(text);
-  const url = `https://api.callmebot.com/whatsapp.php?phone=${phone}&text=${encoded}&apikey=${apikey}`;
+  const url = `https://api.callmebot.com/whatsapp.php?phone=${cleanPhone}&text=${encoded}&apikey=${apikey}`;
+  console.log(`📱 CallMeBot URL (phone=${cleanPhone}, text length=${text.length}, url length=${url.length})`);
   return new Promise((resolve, reject) => {
     const req = https.get(url, (res) => {
       let body = '';
@@ -162,8 +180,8 @@ async function sendWhatsApp(db, order) {
     return;
   }
 
-  const text = buildOrderText(order);
-  console.log(`📱 Sending WhatsApp to ${recipients.length} recipient(s) for order #${order.id}...`);
+  const text = buildWhatsAppText(order);
+  console.log(`📱 Sending WhatsApp to ${recipients.length} recipient(s) for order #${order.id} (msg length: ${text.length})...`);
 
   for (const r of recipients) {
     try {
