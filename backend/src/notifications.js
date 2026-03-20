@@ -230,12 +230,22 @@ async function testWhatsApp(db) {
 
 /** Fire both notifications without blocking the response */
 function sendNotifications(db, order) {
-  console.log(`🔔 Triggering notifications for order #${order.id}...`);
-  const s = getSettings(db);
-  console.log(`🔔 Email enabled: ${s.email_enabled}, WhatsApp enabled: ${s.whatsapp_enabled}`);
-  console.log(`🔔 WhatsApp recipients raw: ${s.whatsapp_recipients}`);
-  sendEmail(db, order).catch(err => console.error('🔔 Email notification error:', err.message));
-  sendWhatsApp(db, order).catch(err => console.error('🔔 WhatsApp notification error:', err.message));
+  try {
+    console.log(`🔔 === NOTIFICATION START for order #${order.id} ===`);
+    console.log(`🔔 Order data: name=${order.client_name}, total=${order.total}, items=${order.items?.length || 0}`);
+
+    const s = getSettings(db);
+    console.log(`🔔 DB Settings — email_enabled: "${s.email_enabled}", whatsapp_enabled: "${s.whatsapp_enabled}"`);
+    console.log(`🔔 DB Settings — whatsapp_recipients: ${s.whatsapp_recipients}`);
+
+    sendEmail(db, order).catch(err => console.error('🔔 Email notification error:', err.message));
+    sendWhatsApp(db, order).catch(err => console.error('🔔 WhatsApp notification error:', err.message));
+
+    console.log(`🔔 === NOTIFICATION DISPATCHED for order #${order.id} ===`);
+  } catch (err) {
+    console.error(`🔔 === NOTIFICATION CRASHED for order #${order.id}: ${err.message} ===`);
+    console.error(err.stack);
+  }
 }
 
 module.exports = { sendNotifications, testEmail, testWhatsApp };

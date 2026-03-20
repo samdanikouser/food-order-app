@@ -103,6 +103,13 @@ router.post('/', (req, res) => {
 
   const orderId = placeOrder();
 
+  // Read notification settings to debug
+  const debugSettings = {};
+  try {
+    const rows = db.prepare('SELECT key, value FROM settings').all();
+    rows.forEach(r => { debugSettings[r.key] = r.value; });
+  } catch (e) { debugSettings.error = e.message; }
+
   // Fire notifications asynchronously (won't delay the response)
   const fullOrder = {
     id: orderId,
@@ -114,9 +121,26 @@ router.post('/', (req, res) => {
     notes: notes || '',
     items: itemsQuery(orderId),
   };
-  sendNotifications(db, fullOrder);
 
-  res.status(201).json({ success: true, data: { order_id: orderId, total } });
+  console.log(`🔔 ORDER #${orderId} — About to call sendNotifications`);
+  console.log(`🔔 ORDER #${orderId} — whatsapp_enabled="${debugSettings.whatsapp_enabled}", recipients="${debugSettings.whatsapp_recipients}"`);
+
+  try {
+    sendNotifications(db, fullOrder);
+    console.log(`🔔 ORDER #${orderId} — sendNotifications called OK`);
+  } catch (err) {
+    console.error(`🔔 ORDER #${orderId} — sendNotifications CRASHED:`, err.message);
+  }
+
+  res.status(201).json({
+    success: true,
+    data: { order_id: orderId, total },
+    _debug: {
+      whatsapp_enabled: debugSettings.whatsapp_enabled,
+      whatsapp_recipients: debugSettings.whatsapp_recipients,
+      email_enabled: debugSettings.email_enabled,
+    }
+  });
 });
 
 // PUT /api/orders/:id/status  (protected)
