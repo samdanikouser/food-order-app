@@ -154,4 +154,41 @@ router.put('/:id/status', requireAuth, (req, res) => {
   res.json({ success: true, message: 'Status updated' });
 });
 
+// PUT /api/orders/:id/deliver  (protected) — mark delivered with actual quantities
+router.put('/:id/deliver', requireAuth, (req, res) => {
+  const { delivered_items } = req.body;
+  // delivered_items = [{ order_item_id: 1, delivered_qty: 25 }, ...]
+
+  if (!Array.isArray(delivered_items)) {
+    return res.status(400).json({ success: false, message: 'delivered_items array is required' });
+  }
+
+  const order = db.prepare('SELECT * FROM orders WHERE id = ?').get(req.params.id);
+  if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
+
+  const updateItem = db.prepare('UPDATE order_items SET delivered_qty = ? WHERE id = ? AND order_id = ?');
+
+  const deliverOrder = db.transaction(() => {
+    for (const item of delivered_items) {
+      updateItem.run(item.delivered_qty, item.order_item_id, req.params.id);
+    }
+    db.prepare('UPDATE orders SET status = ? WHERE id = ?').run('delivered', req.params.id);
+  });
+
+  deliverOrder();
+
+  // Recalculate delivered total
+  const items = itemsQuery(order.id);
+  const delivered_total = items.reduce((sum, i) => {
+    const dQty = i.delivered_qty !== null && i.delivered_qty !== undefined ? i.delivered_qty : i.quantity;
+    return sum + i.unit_price * dQty;
+  }, 0);
+
+  res.json({
+    success: true,
+    message: 'Order marked as delivered',
+    data: { delivered_total, items }
+  });
+});
+
 module.exports = router;

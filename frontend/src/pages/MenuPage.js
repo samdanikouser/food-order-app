@@ -354,24 +354,43 @@ export default function MenuPage() {
                         <thead>
                           <tr>
                             <th>Item</th>
-                            <th>Qty</th>
+                            <th>Ordered</th>
+                            {order.status === 'delivered' && <th>Delivered</th>}
                             <th>Price</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {order.items.map(item => (
-                            <tr key={item.id}>
-                              <td>{item.name}</td>
-                              <td style={{ color: '#9A7060' }}>{item.quantity}</td>
-                              <td style={{ color: '#8B4513', fontWeight: 600 }}>{kwd(item.unit_price * item.quantity)}</td>
-                            </tr>
-                          ))}
+                          {order.items.map(item => {
+                            const dq = item.delivered_qty !== null && item.delivered_qty !== undefined ? item.delivered_qty : null;
+                            const hasShortage = dq !== null && dq < item.quantity;
+                            return (
+                              <tr key={item.id}>
+                                <td>{item.name}</td>
+                                <td style={{ color: '#9A7060' }}>{item.quantity}</td>
+                                {order.status === 'delivered' && (
+                                  <td style={{ color: hasShortage ? '#C0392B' : '#2E7D4A', fontWeight: 600 }}>
+                                    {dq !== null ? dq : item.quantity}
+                                    {hasShortage && <span style={{ fontSize: '0.72rem', marginLeft: 3 }}>(-{item.quantity - dq})</span>}
+                                  </td>
+                                )}
+                                <td style={{ color: '#8B4513', fontWeight: 600 }}>{kwd(item.unit_price * item.quantity)}</td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                         <tfoot>
                           <tr>
-                            <td colSpan={2} style={{ fontWeight: 700, paddingTop: 10, color: '#8B4513', borderBottom: 'none' }}>Total</td>
+                            <td colSpan={order.status === 'delivered' ? 3 : 2} style={{ fontWeight: 700, paddingTop: 10, color: '#8B4513', borderBottom: 'none' }}>Ordered Total</td>
                             <td style={{ fontWeight: 700, paddingTop: 10, color: '#8B4513', borderBottom: 'none' }}>{kwd(order.total)}</td>
                           </tr>
+                          {order.status === 'delivered' && order.items.some(i => i.delivered_qty !== null && i.delivered_qty !== undefined && i.delivered_qty !== i.quantity) && (
+                            <tr>
+                              <td colSpan={3} style={{ fontWeight: 700, paddingTop: 4, color: '#2E7D4A', borderBottom: 'none' }}>Delivered Total</td>
+                              <td style={{ fontWeight: 700, paddingTop: 4, color: '#2E7D4A', borderBottom: 'none' }}>
+                                {kwd(order.items.reduce((s, i) => s + i.unit_price * (i.delivered_qty !== null && i.delivered_qty !== undefined ? i.delivered_qty : i.quantity), 0))}
+                              </td>
+                            </tr>
+                          )}
                         </tfoot>
                       </table>
 

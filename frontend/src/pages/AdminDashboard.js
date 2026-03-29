@@ -23,20 +23,30 @@ function generatePDF(orders, filterLabel) {
   const confirmed = orders.filter(o => o.status === 'confirmed').length;
   const delivered = orders.filter(o => o.status === 'delivered').length;
 
-  const orderRows = orders.map(order => `
+  const orderRows = orders.map(order => {
+    const deliveredTotal = order.items.reduce((s, i) => {
+      const dq = i.delivered_qty !== null && i.delivered_qty !== undefined ? i.delivered_qty : i.quantity;
+      return s + i.unit_price * dq;
+    }, 0);
+    const hasShortage = order.status === 'delivered' && order.items.some(i => i.delivered_qty !== null && i.delivered_qty !== undefined && i.delivered_qty < i.quantity);
+    return `
     <tr>
       <td>${order.id}</td>
       <td>${order.client_name}<br/><span class="sub">${order.client_email}</span></td>
       <td>${order.order_date || order.created_at?.slice(0,10) || '—'}</td>
       <td>${order.created_at?.slice(11,16) || '—'}</td>
       <td>
-        ${order.items.map(i => `${i.name} ×${i.quantity}`).join(', ')}
+        ${order.items.map(i => {
+          const dq = i.delivered_qty !== null && i.delivered_qty !== undefined ? i.delivered_qty : null;
+          const short = dq !== null && dq < i.quantity;
+          return `${i.name} ×${i.quantity}${dq !== null ? ` <span style="color:${short ? '#C0392B' : '#2E7D4A'};font-weight:600">(del: ${dq})</span>` : ''}`;
+        }).join(', ')}
         ${order.notes ? `<br/><span class="notes">📝 ${order.notes}</span>` : ''}
       </td>
-      <td class="gold">${kwd(order.total)}</td>
+      <td class="gold">${kwd(order.total)}${hasShortage ? `<br/><span style="color:#2E7D4A;font-size:10px;font-weight:600">Del: ${kwd(deliveredTotal)}</span>` : ''}</td>
       <td><span class="badge badge-${order.status}">${order.status.charAt(0).toUpperCase() + order.status.slice(1)}</span></td>
-    </tr>
-  `).join('');
+    </tr>`;
+  }).join('');
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -160,6 +170,53 @@ export default function AdminDashboard() {
   const [toMonth, setToMonth]       = useState(thisMonth);
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState('');
+
+  // Track delivered quantities per order: { orderId: { orderItemId: qty, ... } }
+  const [deliveredQtys, setDeliveredQtys] = useState({});
+  const [delivering, setDelivering]       = useState({});
+
+  const initDeliveredQtys = (order) => {
+    if (deliveredQtys[order.id]) return;
+    const qtys = {};
+    order.items.forEach(item => {
+      qtys[item.id] = item.delivered_qty !== null && item.delivered_qty !== undefined
+        ? item.delivered_qty
+        : item.quantity;
+    });
+    setDeliveredQtys(prev => ({ ...prev, [order.id]: qtys }));
+  };
+
+  const setItemDeliveredQty = (orderId, itemId, qty) => {
+    setDeliveredQtys(prev => ({
+      ...prev,
+      [orderId]: { ...prev[orderId], [itemId]: Math.max(0, parseInt(qty) || 0) }
+    }));
+  };
+
+  const handleDeliver = async (orderId) => {
+    const qtys = deliveredQtys[orderId];
+    if (!qtys) return;
+    setDelivering(prev => ({ ...prev, [orderId]: true }));
+    try {
+      const delivered_items = Object.entries(qtys).map(([id, qty]) => ({
+        order_item_id: parseInt(id),
+        delivered_qty: qty,
+      }));
+      await axios.put(`/api/orders/${orderId}/deliver`, { delivered_items }, authHeader());
+      setOrders(prev => prev.map(o => {
+        if (o.id !== orderId) return o;
+        return {
+          ...o,
+          status: 'delivered',
+          items: o.items.map(item => ({ ...item, delivered_qty: qtys[item.id] ?? item.quantity }))
+        };
+      }));
+    } catch {
+      alert('Failed to update delivery.');
+    } finally {
+      setDelivering(prev => ({ ...prev, [orderId]: false }));
+    }
+  };
 
   const filterLabel = filterMode === 'day'
     ? date
@@ -309,26 +366,69 @@ export default function AdminDashboard() {
             )}
           </div>
 
+          {(() => { initDeliveredQtys(order); return null; })()}
           <table style={{ width: '100%', fontSize: '0.85rem', borderCollapse: 'collapse', marginBottom: 14 }}>
             <thead>
               <tr>
-                <th style={{ padding: '5px 0', fontWeight: 500, color: '#9A7060', textAlign: 'left', fontSize: '0.76rem', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #EDD9C8' }}>Item</th>
-                <th style={{ padding: '5px 0', fontWeight: 500, color: '#9A7060', textAlign: 'left', fontSize: '0.76rem', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #EDD9C8' }}>Qty</th>
-                <th style={{ padding: '5px 0', fontWeight: 500, color: '#9A7060', textAlign: 'left', fontSize: '0.76rem', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #EDD9C8' }}>Subtotal</th>
+                {[
+                  { label: 'Item', width: undefined },
+                  { label: 'Ordered', width: 65 },
+                  { label: 'Delivered', width: 80 },
+                  { label: 'Subtotal', width: 90 },
+                ].map(col => (
+                  <th key={col.label} style={{ padding: '5px 0', fontWeight: 500, color: '#9A7060', textAlign: 'left', fontSize: '0.76rem', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid #EDD9C8', width: col.width }}>
+                    {col.label}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
-              {order.items.map(item => (
-                <tr key={item.id}>
-                  <td style={{ padding: '6px 0', color: '#5A3520', borderBottom: '1px solid #F5EAE0' }}>{item.name}</td>
-                  <td style={{ padding: '6px 0', color: '#9A7060', borderBottom: '1px solid #F5EAE0' }}>{item.quantity}</td>
-                  <td style={{ padding: '6px 0', color: '#8B4513', fontWeight: 600, borderBottom: '1px solid #F5EAE0' }}>
-                    {kwd(item.unit_price * item.quantity)}
-                  </td>
-                </tr>
-              ))}
+              {order.items.map(item => {
+                const dQty = deliveredQtys[order.id]?.[item.id] ?? (item.delivered_qty !== null && item.delivered_qty !== undefined ? item.delivered_qty : item.quantity);
+                const isDelivered = order.status === 'delivered';
+                const hasShortage = isDelivered && item.delivered_qty !== null && item.delivered_qty !== undefined && item.delivered_qty < item.quantity;
+                return (
+                  <tr key={item.id}>
+                    <td style={{ padding: '6px 0', color: '#5A3520', borderBottom: '1px solid #F5EAE0' }}>{item.name}</td>
+                    <td style={{ padding: '6px 0', color: '#9A7060', borderBottom: '1px solid #F5EAE0' }}>{item.quantity}</td>
+                    <td style={{ padding: '6px 0', borderBottom: '1px solid #F5EAE0' }}>
+                      {isDelivered ? (
+                        <span style={{ color: hasShortage ? '#C0392B' : '#2E7D4A', fontWeight: 600 }}>
+                          {item.delivered_qty !== null && item.delivered_qty !== undefined ? item.delivered_qty : item.quantity}
+                          {hasShortage && <span style={{ fontSize: '0.72rem', color: '#C0392B', marginLeft: 4 }}>(-{item.quantity - item.delivered_qty})</span>}
+                        </span>
+                      ) : (
+                        <input
+                          type="number"
+                          min="0"
+                          max={item.quantity}
+                          value={dQty}
+                          onChange={e => setItemDeliveredQty(order.id, item.id, e.target.value)}
+                          style={{
+                            width: 56, padding: '3px 6px', border: '1px solid #EDD9C8',
+                            borderRadius: 6, fontSize: '0.85rem', textAlign: 'center',
+                            color: dQty < item.quantity ? '#C0392B' : '#2E7D4A',
+                            fontWeight: 600, background: '#FFFBF6',
+                          }}
+                        />
+                      )}
+                    </td>
+                    <td style={{ padding: '6px 0', color: '#8B4513', fontWeight: 600, borderBottom: '1px solid #F5EAE0' }}>
+                      {kwd(item.unit_price * item.quantity)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
+
+          {/* Delivered total vs ordered total */}
+          {order.status === 'delivered' && order.items.some(i => i.delivered_qty !== null && i.delivered_qty !== undefined && i.delivered_qty !== i.quantity) && (
+            <div style={{ display: 'flex', gap: 16, fontSize: '0.82rem', marginBottom: 12, padding: '8px 12px', background: '#FFF8F0', borderRadius: 8, border: '1px solid #EDD9C8' }}>
+              <span style={{ color: '#9A7060' }}>Ordered: <strong style={{ color: '#8B4513' }}>{kwd(order.total)}</strong></span>
+              <span style={{ color: '#9A7060' }}>Delivered: <strong style={{ color: '#2E7D4A' }}>{kwd(order.items.reduce((s, i) => s + i.unit_price * (i.delivered_qty !== null && i.delivered_qty !== undefined ? i.delivered_qty : i.quantity), 0))}</strong></span>
+            </div>
+          )}
 
           {order.notes && (
             <p style={{ fontSize: '0.82rem', color: '#9A7060', marginBottom: 12, fontStyle: 'italic' }}>
@@ -336,17 +436,36 @@ export default function AdminDashboard() {
             </p>
           )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
             <label style={{ fontSize: '0.78rem', fontWeight: 500, color: '#9A7060', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Status</label>
-            <select
-              className="status-select"
-              value={order.status}
-              onChange={e => updateStatus(order.id, e.target.value)}
-            >
-              {STATUS_OPTIONS.map(s => (
-                <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
-              ))}
-            </select>
+            {order.status !== 'delivered' ? (
+              <>
+                <select
+                  className="status-select"
+                  value={order.status}
+                  onChange={e => {
+                    if (e.target.value === 'delivered') return; // use deliver button instead
+                    updateStatus(order.id, e.target.value);
+                  }}
+                >
+                  {STATUS_OPTIONS.filter(s => s !== 'delivered').map(s => (
+                    <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
+                  ))}
+                </select>
+                <button
+                  className="btn btn-primary"
+                  style={{ padding: '6px 16px', fontSize: '0.8rem' }}
+                  onClick={() => handleDeliver(order.id)}
+                  disabled={delivering[order.id]}
+                >
+                  {delivering[order.id] ? 'Saving...' : '📦 Mark Delivered'}
+                </button>
+              </>
+            ) : (
+              <span className="status-badge status-delivered" style={{ fontSize: '0.82rem' }}>
+                Delivered
+              </span>
+            )}
           </div>
         </div>
       ))}

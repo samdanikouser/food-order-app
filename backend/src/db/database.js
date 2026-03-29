@@ -152,5 +152,13 @@ try {
   console.log('Migration: added delivery_date column to orders table.');
 }
 
+// Migrate: add delivered_qty column to order_items if missing
+try {
+  db.prepare("SELECT delivered_qty FROM order_items LIMIT 1").get();
+} catch {
+  db.exec("ALTER TABLE order_items ADD COLUMN delivered_qty INTEGER DEFAULT NULL");
+  console.log('Migration: added delivered_qty column to order_items table.');
+}
+
 module.exports = db;
 module.exports.CATEGORIES = CATEGORIES;
